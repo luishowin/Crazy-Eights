@@ -26,23 +26,33 @@ Turn:
       "A card can be played if it matches the rank or suit of the top card on the discard pile, or if it is an eight (wild).",
 
     wildCard: 
-      rank: "8
-      effect:
-        - An eight may be played on any card. The player who plays it chooses the suit that continues play.
+      suit: ace
+      effect: An ace may be played on any card. The player who plays it chooses the suit that continues play.
+
+      rank: 2
+      effect: Next player draws 2
+
+      rank: 3
+      effect: Next player draws 3
+
+      suit: K
+      effect: Kickback/reverse order of play
+
+      suit: J
+      effect: Skips the next player
+
+      suit: joker
+      effect: draw 5
+
+
     
     drawRule:
-      - If a player cannot play, they draw one card at a time until they find a playable card or the draw pile is    empty.
+      - If a player cannot play, they draw one card at a time until they find a playable card or until the accumulate a total of 15 cards then they are eliminated.
+
   
 
-  winning: 
-    condition:
-      "The first player to play all their cards wins the round.",
     scoring:
       "If scoring is used, each other player scores penalty points equal to the value of the cards left in their hand (Eights = 50, Face cards = 10, Number cards = face value, Aces = 1)."
   
 
-  variations: 
-    "Some versions allow drawing only once per turn if no playable card is drawn.",
-    "Some versions skip reshuffling when the draw pile is empty — play stops immediately.",
-    "Point target games: play multiple rounds until a player reaches 100 points.",
-    "Optional power cards (e.g., Skip, Reverse, Draw Two) are *not* part of standard rules but common in variants."
+
