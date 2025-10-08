@@ -1,4 +1,4 @@
-# Crazyy Eights
+# Very Crazy Eights
 A variant of Crazy Eights.
 
 
