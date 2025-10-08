@@ -1,3 +1,5 @@
+![Banner](banner.png)
+
 # 🎴 Very Crazy Eights
 A chaotic, strategic, and occasionally cruel variant of Crazy Eights.
 
