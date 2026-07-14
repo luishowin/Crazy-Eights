@@ -1,0 +1,57 @@
+# GitHub Pages deploy workflow for Very Crazy Eights.
+#
+# NOTE: this file lives here (not under .github/workflows/) because pushing
+# workflow files requires a token with the `workflow` scope. To activate it,
+# move it into place using one of:
+#   - GitHub web UI: Actions tab → "New workflow" → paste this content, or
+#   - a local push with a workflow-scoped token / SSH:
+#       git mv deploy/github-pages.yml .github/workflows/deploy.yml
+#       git commit -m "Add Pages deploy workflow" && git push
+#
+# Then in the repo: Settings → Pages → Build and deployment → Source:
+# "GitHub Actions". Pushes to main will publish to
+# https://<your-user>.github.io/Crazy-Eights/
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          GITHUB_PAGES: '1' # serve under /Crazy-Eights/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
