@@ -1,0 +1,483 @@
+/* Game table: grid, seats, center, hand, action bar. */
+
+.table {
+  flex: 1;
+  min-height: 0;
+  width: min(100%, 1000px);
+  margin-inline: auto;
+  display: grid;
+  /* Four children, four rows — the CENTER owns the flexible space. */
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: 'topbar' 'opponents' 'center' 'handzone';
+}
+.topbar {
+  grid-area: topbar;
+}
+.opponents {
+  grid-area: opponents;
+}
+.center {
+  grid-area: center;
+}
+.handzone {
+  grid-area: handzone;
+}
+
+/* ---------- Topbar ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  gap: 10px;
+}
+.topbar .title {
+  font-weight: 700;
+  color: var(--gold);
+  font-size: 15px;
+}
+.topbar .tb-side {
+  width: 72px;
+  display: flex;
+  justify-content: flex-end;
+}
+.icon-btn {
+  background: none;
+  padding: 8px;
+  border-radius: 8px;
+  color: var(--ink-dim);
+  display: inline-flex;
+}
+.icon-btn:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+/* ---------- Opponent seats ---------- */
+
+.opponents {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: clamp(6px, 2.5vw, 20px);
+  flex-wrap: wrap;
+  padding: 2px 10px 4px;
+}
+.seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px 6px;
+  border-radius: 12px;
+  min-width: 70px;
+  max-width: 130px;
+  position: relative;
+}
+.seat .avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 17px;
+  color: #2a220b;
+  background: linear-gradient(180deg, #d8e6dc, #a9c2b1);
+  border: 2px solid rgba(0, 0, 0, 0.25);
+  position: relative;
+}
+.seat.bot .avatar {
+  background: linear-gradient(180deg, #c9d6e8, #93a8c4);
+}
+.seat .count-chip {
+  position: absolute;
+  right: -7px;
+  bottom: -5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--card-black);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+.seat .name {
+  font-size: 12.5px;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seat .status-tag {
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  line-height: 1;
+  min-height: 11px;
+}
+.seat.current .avatar {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(231, 198, 107, 0.55), 0 0 18px rgba(231, 198, 107, 0.35);
+}
+.seat.out {
+  opacity: 0.45;
+}
+.kadi-badge {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-4deg);
+  background: var(--danger);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .seat.current .avatar {
+    animation: turnGlow 1.4s ease-in-out infinite alternate;
+  }
+  @keyframes turnGlow {
+    from {
+      box-shadow: 0 0 0 2px rgba(231, 198, 107, 0.45), 0 0 10px rgba(231, 198, 107, 0.2);
+    }
+    to {
+      box-shadow: 0 0 0 2px rgba(231, 198, 107, 0.75), 0 0 22px rgba(231, 198, 107, 0.45);
+    }
+  }
+}
+
+/* ---------- Center: status row + piles ---------- */
+
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  position: relative;
+  gap: 6px;
+}
+/* Stadium-shaped felt inset so wide screens read as a table, not a void. */
+.center::before {
+  content: '';
+  position: absolute;
+  inset: 2px clamp(8px, 10vw, 120px);
+  border-radius: 999px;
+  background: radial-gradient(ellipse at 50% 40%, rgba(255, 255, 255, 0.05), transparent 70%);
+  border: 1.5px solid rgba(231, 198, 107, 0.14);
+  box-shadow: inset 0 4px 24px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.status-row {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  max-width: 94%;
+}
+.status-bubble {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.status-bubble.attack {
+  border-color: var(--danger);
+  color: #ffd7cd;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .status-bubble.attack {
+    animation: bubblePulse 0.4s ease;
+  }
+  @keyframes bubblePulse {
+    0% {
+      transform: scale(0.92);
+    }
+    55% {
+      transform: scale(1.06);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+}
+.required-suit {
+  font-size: 22px;
+  line-height: 1;
+  vertical-align: -3px;
+}
+
+.piles {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 5vw, 40px);
+  z-index: 1;
+}
+.pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.pile .label {
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.pile .count {
+  font-size: 11px;
+  color: var(--ink-dim);
+  min-height: 14px;
+}
+.pile-btn {
+  padding: 0;
+  background: none;
+  border-radius: 9px;
+  position: relative;
+}
+.pile-btn:hover:not(:disabled) {
+  background: none;
+}
+.pile-btn:not(:disabled) .card.back {
+  box-shadow: 0 0 0 2px var(--gold), 0 6px 14px var(--shadow);
+}
+/* Draw pile depth: stacked edges behind the top card. */
+.draw-stack {
+  position: relative;
+}
+.draw-stack::before,
+.draw-stack::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  background: #0e4636;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  z-index: -1;
+}
+.draw-stack::before {
+  transform: translate(2.5px, 2.5px);
+}
+.draw-stack::after {
+  transform: translate(5px, 5px);
+  opacity: 0.7;
+}
+
+.direction {
+  color: var(--gold);
+  opacity: 0.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.direction svg {
+  width: clamp(30px, 6vw, 42px);
+  height: clamp(30px, 6vw, 42px);
+}
+.direction.rev svg {
+  transform: scaleX(-1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .direction svg {
+    animation: dirSpin 0.6s ease;
+  }
+  @keyframes dirSpin {
+    from {
+      rotate: -180deg;
+      opacity: 0;
+    }
+  }
+}
+
+/* ---------- Hand zone ---------- */
+
+.handzone {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+}
+.turn-hint {
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-dim);
+  min-height: 18px;
+  padding: 0 12px;
+}
+.turn-hint.you {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.hand {
+  display: flex;
+  align-items: flex-end;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Headroom INSIDE the scroller so raised cards are never clipped. */
+  padding: 30px 14px 6px;
+  min-height: calc(var(--card-h) + 40px);
+  scrollbar-width: thin;
+}
+.hand .slot {
+  margin-left: calc(var(--card-w) * -0.42);
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  padding: 0;
+  border-radius: 9px;
+  transition: margin 0.12s ease;
+}
+/* Auto margins center the fan when it fits and allow full scroll when not
+   (justify-content:center would clip the left edge on overflow). */
+.hand .slot:first-child {
+  margin-left: auto;
+}
+.hand .slot:last-child {
+  margin-right: auto;
+}
+.hand .slot .card {
+  transition: transform 0.14s ease, box-shadow 0.14s ease, filter 0.14s ease;
+}
+.hand .slot.playable .card {
+  box-shadow: 0 -1px 0 1.5px rgba(231, 198, 107, 0.8), 0 5px 12px var(--shadow);
+  cursor: pointer;
+}
+.hand .slot.dim .card {
+  filter: brightness(0.72) saturate(0.85);
+}
+.hand .slot.selected {
+  margin-inline: 8px;
+}
+.hand .slot.selected .card {
+  transform: translateY(-18px) scale(1.04);
+  box-shadow: 0 0 0 2.5px var(--gold), 0 14px 24px var(--shadow);
+}
+@media (hover: hover) and (pointer: fine) {
+  .hand .slot.playable:hover .card {
+    transform: translateY(-14px);
+  }
+  .hand .slot.selected:hover .card {
+    transform: translateY(-18px) scale(1.04);
+  }
+}
+@media (hover: none) {
+  .hand .slot {
+    margin-left: calc(var(--card-w) * -0.3);
+  }
+}
+
+/* ---------- Action bar ---------- */
+
+.action-bar {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 12px;
+}
+.action-bar .primary {
+  min-width: 140px;
+}
+.kadi-chip {
+  border-radius: 999px;
+  border: 1.5px solid var(--danger);
+  background: transparent;
+  color: #ffb3a5;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 14px;
+}
+.kadi-chip.armed {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: 0 0 14px rgba(224, 83, 61, 0.5);
+}
+
+/* ---------- Landscape: opponents become a side rail ---------- */
+
+@media (orientation: landscape) and (max-height: 480px) {
+  .table {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'opponents topbar'
+      'opponents center'
+      'opponents handzone';
+  }
+  .opponents {
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 8px 6px 8px 10px;
+    overflow-y: auto;
+  }
+  .seat {
+    flex-direction: row;
+    gap: 8px;
+    padding: 4px 10px;
+    min-width: 0;
+    max-width: 150px;
+  }
+  .seat .avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+  }
+  .seat .count-chip {
+    right: -6px;
+    bottom: -4px;
+    min-width: 17px;
+    height: 17px;
+    font-size: 10px;
+  }
+  .seat .status-tag {
+    display: none;
+  }
+  .kadi-badge {
+    top: -7px;
+    left: 20px;
+    transform: rotate(-4deg);
+  }
+  .pile .label,
+  .pile .count {
+    display: none;
+  }
+  .turn-hint {
+    display: none;
+  }
+  .hand {
+    padding-top: 24px;
+    min-height: calc(var(--card-h) + 32px);
+  }
+  .action-bar {
+    min-height: 46px;
+  }
+  .center::before {
+    inset: 0 clamp(8px, 6vw, 60px);
+  }
+}

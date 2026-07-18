@@ -41,11 +41,13 @@ export function LobbyScreen({
   if (status === 'error' || status === 'ended') {
     return (
       <div className="home">
-        <h1>Oops</h1>
-        <p className="tagline">{error ?? 'Something went wrong.'}</p>
-        <button className="primary" onClick={onExit}>
-          Back to menu
-        </button>
+        <div className="home-inner">
+          <h1>Oops</h1>
+          <p className="tagline">{error ?? 'Something went wrong.'}</p>
+          <button className="primary" onClick={onExit}>
+            Back to menu
+          </button>
+        </div>
       </div>
     );
   }
@@ -53,13 +55,15 @@ export function LobbyScreen({
   if (status === 'connecting') {
     return (
       <div className="home">
-        <h1>{isHost ? 'Opening room…' : 'Joining room…'}</h1>
-        <p className="tagline">
-          {isHost ? 'Setting up a peer-to-peer table.' : `Looking for room ${code}.`}
-        </p>
-        <button className="link" onClick={onExit}>
-          Cancel
-        </button>
+        <div className="home-inner">
+          <h1>{isHost ? 'Opening room…' : 'Joining room…'}</h1>
+          <p className="tagline">
+            {isHost ? 'Setting up a peer-to-peer table.' : `Looking for room ${code}.`}
+          </p>
+          <button className="link" onClick={onExit}>
+            Cancel
+          </button>
+        </div>
       </div>
     );
   }
@@ -69,6 +73,7 @@ export function LobbyScreen({
 
   return (
     <div className="home">
+      <div className="home-inner">
       <div>
         <h1>
           Room <span className="accent">{code}</span>
@@ -149,6 +154,7 @@ export function LobbyScreen({
         <button className="link" onClick={onExit}>
           Leave room
         </button>
+      </div>
       </div>
     </div>
   );

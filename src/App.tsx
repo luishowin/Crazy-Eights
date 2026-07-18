@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { HomeScreen } from './ui/HomeScreen';
 import { GameScreen } from './ui/GameScreen';
 import { LobbyScreen } from './ui/LobbyScreen';
+import { CardDefs } from './ui/Card';
 import { useLocalGame, type LocalConfig } from './ui/useLocalGame';
 import { useOnlineRoom, type OnlineParams } from './ui/useOnlineRoom';
 import { makeRoomCode } from './net/protocol';
+import { unlockAudio } from './ui/sound';
 import type { RuleConfig } from './engine/rules';
 
 type Screen =
@@ -41,6 +43,7 @@ function OnlineGameHost({ params, onExit }: { params: OnlineParams; onExit: () =
         onNewMatch={room.newMatch}
         onExit={onExit}
         waitingForHost={!room.isHost}
+        notice={room.notice}
       />
     );
   }
@@ -68,8 +71,16 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ m: 'home' });
   const goHome = () => setScreen({ m: 'home' });
 
+  // Browsers only allow audio after a user gesture — unlock on the first one.
+  useEffect(() => {
+    const h = () => unlockAudio();
+    window.addEventListener('pointerdown', h, { once: true, capture: true });
+    return () => window.removeEventListener('pointerdown', h, { capture: true });
+  }, []);
+
   return (
     <div className="app">
+      <CardDefs />
       {screen.m === 'home' && (
         <HomeScreen
           onStart={(config) => setScreen({ m: 'local', config })}

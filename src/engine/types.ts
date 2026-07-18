@@ -10,6 +10,8 @@ export interface PlayerState {
   eliminated: boolean;
   /** Emptied their hand. */
   finished: boolean;
+  /** Announced "Niko Kadi!" and is sitting on their last card. */
+  onKadi: boolean;
 }
 
 export interface GameState {
@@ -28,6 +30,10 @@ export interface GameState {
   pendingDraw: number;
   /** True when the top card is an uncovered 8 that must be answered. */
   mustCover: boolean;
+  /** Set after a voluntary draw: the player may play or pass (once per turn). */
+  mayPass: boolean;
+  /** Consecutive turns that ended with no play and nothing drawable (stalemate guard). */
+  stallTurns: number;
 
   rules: RuleConfig;
   rng: number;
@@ -39,7 +45,10 @@ export interface GameState {
   roundScores: Record<string, number> | null;
 
   turnCount: number;
+  /** Recent events only — capped; use eventSeq for total count / diffing. */
   log: GameEvent[];
+  /** Total number of events ever emitted this round (monotonic). */
+  eventSeq: number;
 }
 
 export type Move =
@@ -53,7 +62,9 @@ export type Move =
       /** Set when this play brings you to one card and Niko Kadi is on. */
       announceKadi?: boolean;
     }
-  | { type: 'draw' };
+  | { type: 'draw' }
+  /** End the turn after a voluntary draw without playing. */
+  | { type: 'pass' };
 
 // --- Legal-move description (for UI hints and bots) ---
 
@@ -87,7 +98,10 @@ export type GameEvent =
   | { t: 'mustCover'; playerId: string }
   | { t: 'covered'; playerId: string }
   | { t: 'reshuffled' }
+  | { t: 'kadi'; playerId: string }
   | { t: 'kadiMissed'; playerId: string; penalty: number }
+  | { t: 'passed'; playerId: string }
+  | { t: 'stalemate' }
   | { t: 'eliminated'; playerId: string }
   | { t: 'finished'; playerId: string }
   | { t: 'roundOver'; winnerId: string | null };
@@ -100,6 +114,7 @@ export interface OpponentView {
   handCount: number;
   eliminated: boolean;
   finished: boolean;
+  onKadi: boolean;
 }
 
 export interface PlayerView {
@@ -122,5 +137,11 @@ export interface PlayerView {
   legalPlays: PlayableOption[];
   canDraw: boolean;
   drawMeaning: DrawMeaning | null;
+  /** You may end your turn without playing (after a voluntary draw). */
+  canPass: boolean;
+  /** Room rules — the UI needs these for the kadi toggle and hints. */
+  rules: RuleConfig;
+  /** Recent events (capped); eventSeq is the total ever emitted for diffing. */
   log: GameEvent[];
+  eventSeq: number;
 }

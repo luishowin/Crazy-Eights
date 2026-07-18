@@ -41,6 +41,7 @@ function mkPlayers(
     hand: s.hand,
     eliminated: false,
     finished: false,
+    onKadi: false,
   }));
 }
 function mkState(opts: {
@@ -65,6 +66,8 @@ function mkState(opts: {
     requiredRank: opts.requiredRank ?? null,
     pendingDraw: opts.pendingDraw ?? 0,
     mustCover: opts.mustCover ?? false,
+    mayPass: false,
+    stallTurns: 0,
     rules: makeRules(opts.rules),
     rng: 999,
     phase: 'playing',
@@ -73,6 +76,7 @@ function mkState(opts: {
     roundScores: null,
     turnCount: 0,
     log: [],
+    eventSeq: 0,
   };
 }
 function ids(cards: { cardId: string }[]): string[] {
@@ -508,6 +512,203 @@ describe('viewFor', () => {
     const opp = view.players.find((p) => p.id === 'b')!;
     expect(opp.handCount).toBe(3);
     expect((opp as unknown as Record<string, unknown>).hand).toBeUndefined();
+  });
+});
+
+// --- niko kadi -------------------------------------------------------------
+
+describe('niko kadi', () => {
+  const base = () =>
+    mkState({
+      players: mkPlayers([
+        { id: 'a', hand: hand('5H', '9D') },
+        { id: 'b', hand: hand('9C') },
+      ]),
+      top: card('5D'),
+      draw: hand('QD', 'QC', 'JC'),
+      rules: { nikoKadi: true },
+    });
+
+  it('announcing on the play to one card sets the badge, no penalty', () => {
+    const { state } = applyMove(base(), 'a', {
+      type: 'play',
+      cardId: '5H',
+      announceKadi: true,
+    });
+    expect(state.players[0].hand.length).toBe(1);
+    expect(state.players[0].onKadi).toBe(true);
+    expect(state.log.some((e) => e.t === 'kadi')).toBe(true);
+    const view = viewFor(state, 'b');
+    expect(view.players.find((p) => p.id === 'a')!.onKadi).toBe(true);
+  });
+
+  it('forgetting the announcement draws the penalty and clears the badge', () => {
+    const { state } = applyMove(base(), 'a', { type: 'play', cardId: '5H' });
+    expect(state.players[0].hand.length).toBe(1 + 2);
+    expect(state.players[0].onKadi).toBe(false);
+    expect(state.log.some((e) => e.t === 'kadiMissed')).toBe(true);
+  });
+
+  it('the badge clears when the hand grows again', () => {
+    const announced = applyMove(base(), 'a', {
+      type: 'play',
+      cardId: '5H',
+      announceKadi: true,
+    }).state;
+    // b attacks a... simulate a forced draw by giving b a 2 and letting a eat.
+    expect(announced.players[0].onKadi).toBe(true);
+    const withAttack = { ...structuredClone(announced), pendingDraw: 2, currentPlayerIndex: 0 };
+    const { state } = applyMove(withAttack, 'a', { type: 'draw' });
+    expect(state.players[0].onKadi).toBe(false);
+  });
+});
+
+// --- forced cover ----------------------------------------------------------
+
+describe('forced cover', () => {
+  it('give-up draw is illegal while holding a legal cover (default rules)', () => {
+    const s = mkState({
+      players: mkPlayers([
+        { id: 'a', hand: hand('4H', '9C') }, // 4H covers the 8H
+        { id: 'b', hand: hand('9C') },
+      ]),
+      top: card('8H'),
+      mustCover: true,
+      draw: hand('QD'),
+    });
+    expect(drawInfo(s, 'a').canDraw).toBe(false);
+    expect(() => applyMove(s, 'a', { type: 'draw' })).toThrow();
+  });
+
+  it('give-up draw is allowed when no cover exists', () => {
+    const s = mkState({
+      players: mkPlayers([
+        { id: 'a', hand: hand('4C', '9C') },
+        { id: 'b', hand: hand('9C') },
+      ]),
+      top: card('8H'),
+      mustCover: true,
+      draw: hand('QD'),
+    });
+    expect(drawInfo(s, 'a').canDraw).toBe(true);
+  });
+
+  it('give-up with a cover in hand is allowed when voluntary draws are on', () => {
+    const s = mkState({
+      players: mkPlayers([
+        { id: 'a', hand: hand('4H', '9C') },
+        { id: 'b', hand: hand('9C') },
+      ]),
+      top: card('8H'),
+      mustCover: true,
+      draw: hand('QD'),
+      rules: { noVoluntaryDraw: false },
+    });
+    expect(drawInfo(s, 'a').canDraw).toBe(true);
+  });
+});
+
+// --- voluntary draw & pass ---------------------------------------------------
+
+describe('voluntary draw', () => {
+  const base = () =>
+    mkState({
+      players: mkPlayers([
+        { id: 'a', hand: hand('5H', '9C') }, // 5H is playable on 5D
+        { id: 'b', hand: hand('9C') },
+      ]),
+      top: card('5D'),
+      draw: hand('QD', 'QC'),
+      rules: { noVoluntaryDraw: false },
+    });
+
+  it('draws exactly one card and allows play-or-pass', () => {
+    const { state } = applyMove(base(), 'a', { type: 'draw' });
+    expect(state.players[0].hand.length).toBe(3); // one card, not a dig
+    expect(state.currentPlayerIndex).toBe(0); // turn stays
+    expect(state.mayPass).toBe(true);
+    expect(viewFor(state, 'a').canPass).toBe(true);
+
+    // a second voluntary draw the same turn is illegal
+    expect(drawInfo(state, 'a').canDraw).toBe(false);
+
+    // passing ends the turn
+    const after = applyMove(state, 'a', { type: 'pass' }).state;
+    expect(after.currentPlayerIndex).toBe(1);
+    expect(after.mayPass).toBe(false);
+  });
+
+  it('playing after the voluntary draw also works', () => {
+    const drawn = applyMove(base(), 'a', { type: 'draw' }).state;
+    const { state } = applyMove(drawn, 'a', { type: 'play', cardId: '5H' });
+    expect(state.currentPlayerIndex).toBe(1);
+    expect(state.mayPass).toBe(false);
+  });
+
+  it('pass is illegal without a voluntary draw first', () => {
+    expect(() => applyMove(base(), 'a', { type: 'pass' })).toThrow();
+  });
+
+  it('voluntary draws stay illegal under default rules', () => {
+    const s = mkState({
+      players: mkPlayers([
+        { id: 'a', hand: hand('5H', '9C') },
+        { id: 'b', hand: hand('9C') },
+      ]),
+      top: card('5D'),
+      draw: hand('QD'),
+    });
+    expect(drawInfo(s, 'a').canDraw).toBe(false);
+  });
+});
+
+// --- stalemate guard ---------------------------------------------------------
+
+describe('stalemate', () => {
+  it('ends the round when nobody can play or draw', () => {
+    // Empty draw pile, single discard, hands that can never match 4C.
+    let state = mkState({
+      players: mkPlayers([
+        { id: 'a', hand: hand('9H', '10H') },
+        { id: 'b', hand: hand('9D', '10D', 'QD') },
+        { id: 'c', hand: hand('QH', '7H', '6H') },
+      ]),
+      top: card('4C'),
+      draw: [],
+    });
+    let guard = 0;
+    while (state.phase === 'playing' && guard < 12) {
+      const pid = state.players[state.currentPlayerIndex].id;
+      state = applyMove(state, pid, { type: 'draw' }).state;
+      guard++;
+    }
+    expect(state.phase).toBe('roundOver');
+    expect(state.log.some((e) => e.t === 'stalemate')).toBe(true);
+    // cheapest hand wins: a holds 19, b holds 29, c holds 23
+    expect(state.winnerId).toBe('a');
+  });
+});
+
+// --- log cap -----------------------------------------------------------------
+
+describe('event log', () => {
+  it('stays capped while eventSeq keeps counting', () => {
+    let state = createGame({
+      players: [
+        { id: 'a', name: 'A', isBot: true },
+        { id: 'b', name: 'B', isBot: true },
+        { id: 'c', name: 'C', isBot: true },
+      ],
+      seed: 7,
+    });
+    let guard = 0;
+    while (state.phase === 'playing' && guard < 500) {
+      const pid = state.players[state.currentPlayerIndex].id;
+      state = applyMove(state, pid, chooseBotMove(state, pid, 'normal', () => 0.5)).state;
+      guard++;
+    }
+    expect(state.log.length).toBeLessThanOrEqual(60);
+    expect(state.eventSeq).toBeGreaterThanOrEqual(state.log.length);
   });
 });
 

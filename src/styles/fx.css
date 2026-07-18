@@ -1,0 +1,62 @@
+/* FX overlay: card flights, pops, deal-in. All decorative, never blocking. */
+
+.fx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30; /* above the table, below dialogs (40) and toasts (50) */
+}
+.fx-card {
+  position: fixed;
+  will-change: transform;
+}
+.fx-pop {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffd7cd;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Staggered deal-in for your hand at round start (set per-slot delay var). */
+  .hand.dealing .slot {
+    animation: dealIn 0.32s ease backwards;
+    animation-delay: var(--deal-delay, 0s);
+  }
+  @keyframes dealIn {
+    from {
+      opacity: 0;
+      transform: translateY(26px) scale(0.9);
+    }
+  }
+  /* Brief glow on the hand zone when your turn starts. */
+  .handzone.your-turn-flash {
+    animation: turnFlash 0.7s ease;
+  }
+  @keyframes turnFlash {
+    0% {
+      background: rgba(231, 198, 107, 0);
+    }
+    30% {
+      background: rgba(231, 198, 107, 0.12);
+    }
+    100% {
+      background: rgba(231, 198, 107, 0);
+    }
+  }
+  /* Discard settle when a card lands. */
+  .pile .card.settle {
+    animation: settle 0.22s ease;
+  }
+  @keyframes settle {
+    0% {
+      transform: scale(1.08) rotate(-2deg);
+    }
+    100% {
+      transform: scale(1) rotate(0);
+    }
+  }
+}

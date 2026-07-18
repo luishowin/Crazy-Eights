@@ -16,6 +16,7 @@ export function useOnlineRoom(params: OnlineParams) {
     rules: params.rules ?? {},
     view: null,
     match: null,
+    notice: null,
   });
   const roomRef = useRef<Room | null>(null);
 

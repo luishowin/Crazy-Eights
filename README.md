@@ -117,7 +117,8 @@ npm run build    # production build in dist/
 - [x] Play vs bots (easy / normal / hard)
 - [x] PWA (installable, offline vs bots)
 - [x] Online rooms via PeerJS (host-authoritative, room codes, no accounts)
-- [ ] Polish: card animations, sounds, reconnect hardening
+- [x] Polish: SVG card faces, tap-to-select, card animations, synthesized sounds
+- [ ] Next: share-link rooms, connection status, host-drop recovery, fuller a11y
 
 ### Deploying (free, via GitHub Pages)
 

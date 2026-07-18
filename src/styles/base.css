@@ -1,0 +1,229 @@
+/* Base: tokens, resets, shared controls, overlays, toasts. */
+
+:root {
+  --felt-1: #0b3d29;
+  --felt-2: #0f5132;
+  --felt-edge: #072a1c;
+  --gold: #e7c66b;
+  --gold-dim: #b9973f;
+  --card-bg: #fdfdfb;
+  --card-red: #c0392b;
+  --card-black: #1c2430;
+  --ink: #eaf2ec;
+  --ink-dim: #9db6a6;
+  --danger: #e0533d;
+  --good: #57c98a;
+  --shadow: rgba(0, 0, 0, 0.35);
+  --radius: 14px;
+
+  /* Cards size from BOTH axes so short (landscape) viewports stay sane. */
+  --card-ratio: 1.4;
+  --card-w: clamp(46px, min(13vw, 12vh), 84px);
+  --card-h: calc(var(--card-w) * var(--card-ratio));
+
+  color-scheme: dark;
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+}
+@supports (height: 1dvh) {
+  :root {
+    --card-w: clamp(46px, min(13vw, 12dvh), 84px);
+  }
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse at 50% 38%, var(--felt-2), var(--felt-1) 62%, var(--felt-edge) 100%);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 10px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 10px 16px;
+  transition: transform 0.08s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+}
+button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+button.primary {
+  background: linear-gradient(180deg, var(--gold), var(--gold-dim));
+  color: #2a220b;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+button.ghost {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+button.link {
+  background: none;
+  color: var(--ink-dim);
+  text-decoration: underline;
+  padding: 6px;
+}
+
+.app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ---------- Overlays & dialogs ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 40;
+  backdrop-filter: blur(3px);
+}
+.dialog {
+  background: #123c2c;
+  border: 1px solid rgba(231, 198, 107, 0.3);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: min(380px, 100%);
+  max-height: min(86dvh, 640px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.dialog h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.dialog .row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.suit-btn {
+  flex: 1 1 60px;
+  font-size: 30px;
+  padding: 12px 0;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 10px;
+}
+.suit-btn.red {
+  color: var(--card-red);
+}
+.suit-btn.black {
+  color: var(--card-black);
+}
+.rank-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.rank-grid button {
+  padding: 10px 0;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* ---------- Results ---------- */
+
+.results {
+  text-align: center;
+  gap: 14px;
+}
+.results .winner {
+  font-size: 24px;
+  color: var(--gold);
+  font-weight: 800;
+}
+.scoreboard {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.scoreboard th,
+.scoreboard td {
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.scoreboard td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.scoreboard tr.leader td {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* ---------- Toasts ---------- */
+
+.toast-wrap {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 50;
+  pointer-events: none;
+  width: max-content;
+  max-width: 92vw;
+}
+.toast {
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 13px;
+  text-align: center;
+}
+.toast.error {
+  border-color: var(--danger);
+  color: #ffd7cd;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: toastIn 0.2s ease;
+  }
+  @keyframes toastIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+  }
+}

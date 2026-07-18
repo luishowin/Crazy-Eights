@@ -1,0 +1,49 @@
+/* Card faces & backs. Art is inline SVG (CardArt); this styles the frame. */
+
+.card {
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: 9px;
+  background: var(--card-bg);
+  color: var(--card-black);
+  position: relative;
+  box-shadow: 0 3px 8px var(--shadow);
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+.card.red {
+  color: var(--card-red);
+}
+.card > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The A♠ supercard gets a gold inner frame. */
+.card.ace-spade::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1.5px solid var(--gold-dim);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.card.back {
+  background: repeating-linear-gradient(45deg, #17604a, #17604a 6px, #0e4636 6px, #0e4636 12px);
+  border: 2px solid #0a3527;
+}
+.card.back::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(231, 198, 107, 0.35);
+  border-radius: 5px;
+}
+
+.card.mini-face {
+  width: calc(var(--card-w) * 0.62);
+  height: calc(var(--card-h) * 0.62);
+}

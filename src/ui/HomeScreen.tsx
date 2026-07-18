@@ -62,12 +62,13 @@ export function HomeScreen({ onStart, onCreateRoom, onJoinRoom }: Props) {
 
   return (
     <div className="home">
+      <div className="home-inner">
       <div>
         <h1>
           Very <span className="accent">Crazy Eights</span>
         </h1>
         <p className="tagline">
-          The chaotic Kenyan street game. Play against bots now — invite friends soon.
+          The chaotic Kenyan street game. Play against bots or invite friends to a room.
         </p>
       </div>
 
@@ -185,6 +186,7 @@ export function HomeScreen({ onStart, onCreateRoom, onJoinRoom }: Props) {
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -30,6 +30,8 @@ export interface RoomSnapshot {
   rules: Partial<RuleConfig>;
   view: PlayerView | null;
   match: MatchInfo | null;
+  /** Transient non-fatal message (e.g. a rejected move); id increments per notice. */
+  notice: { id: number; message: string } | null;
 }
 
 export interface RoomOptions {
@@ -74,6 +76,8 @@ export class Room {
   private hostConn: DataConnection | null = null;
   private view: PlayerView | null = null;
   private connectTimer: ReturnType<typeof setTimeout> | null = null;
+  private notice: { id: number; message: string } | null = null;
+  private noticeSeq = 0;
 
   constructor(opts: RoomOptions) {
     this.isHost = opts.role === 'host';
@@ -110,6 +114,7 @@ export class Room {
       rules: this.rules,
       view: this.isHost ? (this.game ? viewFor(this.game, 'host') : null) : this.view,
       match: this.match,
+      notice: this.notice,
     });
   }
 
@@ -430,9 +435,9 @@ export class Room {
         this.emit();
         break;
       case 'error':
-        // Non-fatal (e.g. a rejected move). The UI only offers legal moves,
-        // so this is informational; surface via console for debugging.
-        console.warn('[room]', msg.message);
+        // Non-fatal (e.g. a rejected move) — surface to the player as a toast.
+        this.notice = { id: ++this.noticeSeq, message: msg.message };
+        this.emit();
         break;
       case 'ended':
         this.status = 'ended';

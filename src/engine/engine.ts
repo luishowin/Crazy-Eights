@@ -75,6 +75,7 @@ export function createGame(opts: NewGameOptions): GameState {
     hand: [],
     eliminated: false,
     finished: false,
+    onKadi: false,
   }));
 
   // Deal.
@@ -101,6 +102,8 @@ export function createGame(opts: NewGameOptions): GameState {
     requiredRank: null,
     pendingDraw: 0,
     mustCover: false,
+    mayPass: false,
+    stallTurns: 0,
     rules,
     rng: seed,
     phase: 'playing',
@@ -109,9 +112,13 @@ export function createGame(opts: NewGameOptions): GameState {
     roundScores: null,
     turnCount: 0,
     log: [],
+    eventSeq: 0,
   };
   return state;
 }
+
+/** How many recent events the state keeps (bounded for clone + wire cost). */
+export const LOG_CAP = 60;
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -212,6 +219,20 @@ function isPlayableInContext(
   return mode === 'normal' && matchesTop(state, card);
 }
 
+function candidateModes(card: Card): PlayModeKind[] {
+  if (isJoker(card)) return ['wild'];
+  if (isAceOfSpades(card)) return ['ace-super'];
+  if (isSpade(card)) return ['normal', 'wild'];
+  return ['normal'];
+}
+
+/** Does the player hold any card playable in the CURRENT context (cover/attack/normal)? */
+function hasAnyLegalPlay(state: GameState, player: PlayerState): boolean {
+  return player.hand.some((card) =>
+    candidateModes(card).some((kind) => isPlayableInContext(state, card, kind)),
+  );
+}
+
 /** All the ways the current player can play, for UI hints and bots. */
 export function getLegalPlays(state: GameState, playerId: string): PlayableOption[] {
   const player = playerById(state, playerId);
@@ -221,14 +242,7 @@ export function getLegalPlays(state: GameState, playerId: string): PlayableOptio
   const options: PlayableOption[] = [];
   for (const card of player.hand) {
     const modes: PlayMode[] = [];
-    const candidateModes: PlayModeKind[] = isJoker(card)
-      ? ['wild']
-      : isAceOfSpades(card)
-        ? ['ace-super']
-        : isSpade(card)
-          ? ['normal', 'wild']
-          : ['normal'];
-    for (const kind of candidateModes) {
+    for (const kind of candidateModes(card)) {
       if (isPlayableInContext(state, card, kind)) {
         modes.push({
           kind,
@@ -256,10 +270,17 @@ export function drawInfo(
   if (state.players[state.currentPlayerIndex].id !== playerId)
     return { canDraw: false, meaning: null };
 
-  if (state.mustCover) return { canDraw: true, meaning: 'giveUp' };
+  if (state.mustCover) {
+    // You must answer the question if you can (unless the room allows
+    // voluntary draws, in which case giving up is a legal strategic choice).
+    const mustAnswer = state.rules.noVoluntaryDraw && hasAnyLegalPlay(state, player);
+    return { canDraw: !mustAnswer, meaning: 'giveUp' };
+  }
   if (state.pendingDraw > 0) return { canDraw: true, meaning: 'eat' };
-  if (!state.rules.noVoluntaryDraw) return { canDraw: true, meaning: 'normal' };
-  return { canDraw: !hasNormalPlay(state, player), meaning: 'normal' };
+  if (!hasNormalPlay(state, player)) return { canDraw: true, meaning: 'normal' };
+  // Holding a playable card: drawing is only legal as a once-per-turn
+  // voluntary draw when the room allows it.
+  return { canDraw: !state.rules.noVoluntaryDraw && !state.mayPass, meaning: 'normal' };
 }
 
 // ---------------------------------------------------------------------------
@@ -292,8 +313,10 @@ function drawN(state: GameState, player: PlayerState, n: number, ev: GameEvent[]
     player.hand.push(c);
     drawn++;
   }
+  if (drawn > 0 && player.hand.length > 1) player.onKadi = false;
   if (player.hand.length >= state.rules.bustLimit && !player.finished) {
     player.eliminated = true;
+    player.onKadi = false;
     ev.push({ t: 'eliminated', playerId: player.id });
   }
   return drawn;
@@ -341,8 +364,17 @@ function endRound(state: GameState, ev: GameEvent[]): void {
     }
   }
   state.pendingDraw = 0;
-  const lastSurvivor = state.players.find((p) => !p.finished && !p.eliminated);
-  state.winnerId = state.finishOrder[0] ?? lastSurvivor?.id ?? null;
+  // Winner: whoever went out first; otherwise (last survivor, or a stalemate
+  // with several stuck players) the active player with the cheapest hand.
+  const actives = state.players.filter((p) => !p.finished && !p.eliminated);
+  const cheapest = actives
+    .slice()
+    .sort(
+      (a, b) =>
+        a.hand.reduce((s, c) => s + penaltyValue(c), 0) -
+        b.hand.reduce((s, c) => s + penaltyValue(c), 0),
+    )[0];
+  state.winnerId = state.finishOrder[0] ?? cheapest?.id ?? null;
   state.phase = 'roundOver';
   state.roundScores = computeScores(state);
   ev.push({ t: 'roundOver', winnerId: state.winnerId });
@@ -377,13 +409,29 @@ export function applyMove(prev: GameState, playerId: string, move: Move): ApplyR
 
   if (move.type === 'draw') {
     applyDraw(state, player, ev);
+  } else if (move.type === 'pass') {
+    if (!state.mayPass) throw new Error('You cannot pass right now.');
+    state.mayPass = false;
+    state.stallTurns = 0;
+    ev.push({ t: 'passed', playerId: player.id });
+    advanceTurn(state);
   } else {
     applyPlay(state, player, move, ev);
   }
 
   state.turnCount++;
+
+  // Stalemate guard: a full rotation of turns where nothing was played and
+  // nothing could be drawn means the game can no longer progress.
+  if (state.phase === 'playing' && state.stallTurns >= Math.max(activeCount(state), 2)) {
+    ev.push({ t: 'stalemate' });
+    endRound(state, ev);
+  }
+
   maybeEndRound(state, ev);
   state.log.push(...ev);
+  state.eventSeq += ev.length;
+  if (state.log.length > LOG_CAP) state.log.splice(0, state.log.length - LOG_CAP);
   return { state, events: ev };
 }
 
@@ -393,8 +441,13 @@ function applyDraw(state: GameState, player: PlayerState, ev: GameEvent[]): void
 
   if (meaning === 'giveUp') {
     // Facing an uncovered 8 you can't (or won't) answer: draw 1, 8 stays.
-    drawN(state, player, 1, ev);
-    ev.push({ t: 'drew', playerId: player.id, count: 1, reason: 'giveUp' });
+    const got = drawN(state, player, 1, ev);
+    if (got > 0) {
+      ev.push({ t: 'drew', playerId: player.id, count: got, reason: 'giveUp' });
+      state.stallTurns = 0;
+    } else {
+      state.stallTurns++;
+    }
     if (!player.eliminated) advanceTurn(state); // mustCover stays true
     return;
   }
@@ -402,13 +455,28 @@ function applyDraw(state: GameState, player: PlayerState, ev: GameEvent[]): void
   if (meaning === 'eat') {
     const n = state.pendingDraw;
     state.pendingDraw = 0;
-    drawN(state, player, n, ev);
-    ev.push({ t: 'drew', playerId: player.id, count: n, reason: 'eat' });
+    const got = drawN(state, player, n, ev);
+    ev.push({ t: 'drew', playerId: player.id, count: got, reason: 'eat' });
+    state.stallTurns = 0; // the attack resolved: progress
     advanceTurn(state);
     return;
   }
 
-  // Normal draw: one at a time until a playable card appears or you bust.
+  // Voluntary draw (you hold a playable card but chose to dig): exactly one
+  // card, then you may play anything or pass. Once per turn.
+  if (hasNormalPlay(state, player)) {
+    const got = drawN(state, player, 1, ev);
+    if (got > 0) ev.push({ t: 'drew', playerId: player.id, count: got, reason: 'normal' });
+    state.stallTurns = 0;
+    if (player.eliminated) {
+      advanceTurn(state);
+      return;
+    }
+    state.mayPass = true; // turn stays: play or pass
+    return;
+  }
+
+  // Forced draw: one at a time until a playable card appears or you bust.
   let count = 0;
   for (;;) {
     const c = drawOne(state, ev);
@@ -419,12 +487,18 @@ function applyDraw(state: GameState, player: PlayerState, ev: GameEvent[]): void
     if (player.hand.length >= state.rules.bustLimit) {
       if (playable && state.rules.playablePardonsBust) break; // survives, must play
       player.eliminated = true;
+      player.onKadi = false;
       ev.push({ t: 'eliminated', playerId: player.id });
       break;
     }
     if (playable) break; // survives, must now play
   }
-  if (count > 0) ev.push({ t: 'drew', playerId: player.id, count, reason: 'normal' });
+  if (count > 0) {
+    ev.push({ t: 'drew', playerId: player.id, count, reason: 'normal' });
+    state.stallTurns = 0;
+  } else {
+    state.stallTurns++; // nothing to draw, nothing to play
+  }
 
   // If the player survived and now has a playable card, the turn stays with
   // them (they must play). Otherwise (busted, or deck empty & stuck) pass on.
@@ -464,6 +538,8 @@ function applyPlay(
   state.mustCover = false;
   state.requiredSuit = null;
   state.requiredRank = null;
+  state.mayPass = false;
+  state.stallTurns = 0;
   ev.push({
     t: 'played',
     playerId: player.id,
@@ -546,15 +622,21 @@ function applyPlay(
     ev.push({ t: 'covered', playerId: player.id });
   }
 
-  // Niko Kadi: reaching one card without announcing.
-  if (state.rules.nikoKadi && player.hand.length === 1 && !move.announceKadi) {
-    drawN(state, player, state.rules.nikoKadiPenalty, ev);
-    ev.push({ t: 'kadiMissed', playerId: player.id, penalty: state.rules.nikoKadiPenalty });
+  // Niko Kadi: reaching one card demands the announcement.
+  if (state.rules.nikoKadi && player.hand.length === 1) {
+    if (move.announceKadi) {
+      player.onKadi = true;
+      ev.push({ t: 'kadi', playerId: player.id });
+    } else {
+      drawN(state, player, state.rules.nikoKadiPenalty, ev);
+      ev.push({ t: 'kadiMissed', playerId: player.id, penalty: state.rules.nikoKadiPenalty });
+    }
   }
 
   // Win check (can't win while still owing a cover).
   if (player.hand.length === 0 && !holdTurn) {
     player.finished = true;
+    player.onKadi = false;
     state.finishOrder.push(player.id);
     ev.push({ t: 'finished', playerId: player.id });
   }
@@ -575,6 +657,7 @@ export function viewFor(state: GameState, playerId: string): PlayerView {
     handCount: p.hand.length,
     eliminated: p.eliminated,
     finished: p.finished,
+    onKadi: p.onKadi,
   }));
   const yourTurn =
     state.phase === 'playing' &&
@@ -601,6 +684,9 @@ export function viewFor(state: GameState, playerId: string): PlayerView {
     legalPlays: yourTurn ? getLegalPlays(state, playerId) : [],
     canDraw,
     drawMeaning: meaning,
+    canPass: yourTurn && state.mayPass,
+    rules: state.rules,
     log: state.log,
+    eventSeq: state.eventSeq,
   };
 }
